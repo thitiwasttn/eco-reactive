@@ -14,6 +14,7 @@ import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 import java.time.LocalDateTime;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -121,6 +122,12 @@ public class MemberService {
     public void isUserDelete(UserEntity userEntity) {
         if (userEntity.isDelete()) {
             throw errorService.unAuthorized();
+        }
+    }
+
+    public void isUserDeleteV2(UserEntity userEntity) {
+        if (userEntity.isDelete()) {
+            throw Objects.requireNonNull(errorService.unAuthorizedV2().block());
         }
     }
 
