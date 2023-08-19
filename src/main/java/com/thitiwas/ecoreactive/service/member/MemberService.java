@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.time.LocalDateTime;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -32,70 +33,73 @@ public class MemberService {
         this.userRepository = userRepository;
     }
 
-    boolean validateEmail(String emailAddress) {
+    public Mono<Boolean> validateEmail(String emailAddress) {
+        log.info("validateEmail::{}", emailAddress);
         String regexPattern = "^(?=.{1,64}@)[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*@"
                 + "[^-][A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*(\\.[A-Za-z]{2,})$";
-        return Pattern.compile(regexPattern)
+        return Mono.just(Pattern.compile(regexPattern)
                 .matcher(emailAddress)
-                .matches();
+                .matches());
+    }
+
+    Mono<Boolean> validateTelno(String telno) {
+        boolean ret = false;
+        if (telno != null && telno.length() == 10) {
+            ret = true;
+        }
+        return Mono.just(ret);
     }
 
     /**
      * login with email password to auth service
      */
     public Mono<ResponseLogin> login(RequestLogin login) {
-        if (!validateEmail(login.getEmail())) {
-            throw errorService.emailNotValid();
-        }
-
-        Mono<String> accessToken = userService.login(login.getEmail(), login.getPassword());
-
-        Mono<UserEntity> userEntity = userRepository.findByEmailAndType(login.getEmail(), Constant.MEMBER_TYPE)
-                .switchIfEmpty(Mono.error(errorService::createUserNotFound))
-                .flatMap(userEntity1 -> userEntity1.isDelete() ? Mono.error(errorService.unAuthorized()) : Mono.just(userEntity1));
-
-        /*Mono<MemberEntity> member = userEntity.flatMap(userEntity1 -> memberRepository.findByUserId(userEntity1.getId())
-                .switchIfEmpty(Mono.error(errorService::createUserNotFound)))
-                .flatMap(memberEntity -> {
-                    if (memberEntity.isDelete()) {
-                        log.info("member is deleted");
-                        return Mono.error(errorService.unAuthorized());
-                    } else {
-                        return Mono.just(memberEntity);
+        return validateEmail(login.getEmail())
+                .doOnNext(aBoolean -> {
+                    if (!aBoolean) {
+                        throw errorService.emailNotValid();
                     }
-                }).flatMap(memberEntity -> {
-                    memberEntity.setDeviceOs(login.getDeviceOS());
-                    memberEntity.setClientVersion(login.getClientVersion());
-                    return memberRepository.save(memberEntity);
-                });
-*/
-
-
-        return accessToken.flatMap(token -> userEntity.switchIfEmpty(Mono.error(errorService::createUserNotFound))
-                .flatMap(userEntity1 -> userEntity1.isDelete() ? Mono.error(errorService.unAuthorized()) : Mono.just(userEntity1))
-                .flatMap(userEntity1 -> formatTelnoTo10Digit(userEntity1.getTelno())
-                        .flatMap(telnoFormated -> memberRepository.findByUserId(userEntity1.getId())
+                })
+                .flatMap(isValidEmail -> userService.login(login.getEmail(), login.getPassword())
+                        .flatMap(token -> userRepository.findByEmailAndType(login.getEmail(), Constant.MEMBER_TYPE)
                                 .switchIfEmpty(Mono.error(errorService::createUserNotFound))
-                                .flatMap(memberEntity -> {
-                                    if (memberEntity.isDelete()) {
-                                        log.info("member is deleted");
-                                        return Mono.error(errorService.unAuthorized());
-                                    } else {
-                                        return Mono.just(memberEntity);
-                                    }
-                                }).flatMap(memberEntity -> {
-                                    memberEntity.setDeviceOs(login.getDeviceOS());
-                                    memberEntity.setClientVersion(login.getClientVersion());
-                                    return memberRepository.save(memberEntity);
-                                }).flatMap(memberEntity -> Mono.just(ResponseLogin
-                                        .builder()
-                                        .memberId(String.valueOf(memberEntity.getId()))
-                                        .email(userEntity1.getEmail())
-                                        .accessToken(token)
-                                        .firstName(memberEntity.getFirstName())
-                                        .lastName(memberEntity.getLastName())
-                                        .telno(telnoFormated)
-                                        .build())))));
+                                .doOnNext(this::isUserDelete)
+                                .flatMap(userEntity -> memberRepository.findByUserId(userEntity.getId())
+                                        .switchIfEmpty(Mono.error(errorService::createUserNotFound))
+                                        .doOnNext(this::isMemberDelete)
+                                        .flatMap(memberEntity -> {
+                                            memberEntity.setDeviceOs(login.getDeviceOS());
+                                            memberEntity.setClientVersion(login.getClientVersion());
+                                            memberEntity.setUpdateDate(LocalDateTime.now());
+                                            return memberRepository.save(memberEntity);
+                                        })
+                                        .flatMap(memberEntity -> formatTelnoTo10Digit(userEntity.getTelno())
+                                                .map(telnoFormated -> ResponseLogin
+                                                        .builder()
+                                                        .memberId(String.valueOf(memberEntity.getId()))
+                                                        .email(userEntity.getEmail())
+                                                        .accessToken(token)
+                                                        .firstName(memberEntity.getFirstName())
+                                                        .lastName(memberEntity.getLastName())
+                                                        .telno(telnoFormated)
+                                                        .build())
+                                        )
+                                )
+                        )
+                );
+    }
+
+    public void isUserDelete(UserEntity userEntity) {
+        log.info("isUserDelete");
+        if (userEntity.isDelete()) {
+            throw errorService.unAuthorized();
+        }
+    }
+
+    public void isMemberDelete(MemberEntity memberEntity) {
+        if (memberEntity.isDelete()) {
+            throw errorService.unAuthorized();
+        }
     }
 
     Mono<String> formatTelnoTo10Digit(String telno) {
