@@ -27,6 +27,7 @@ public class SecurityConfig {
 
     private final String[] PUBLIC_ACCESS_PATHS = new String[]{
             "/api/v1/member/login",
+            "/api/v1/p/**",
             "/"
     };
 

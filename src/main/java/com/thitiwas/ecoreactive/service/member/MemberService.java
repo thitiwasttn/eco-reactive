@@ -9,6 +9,7 @@ import com.thitiwas.ecoreactive.repository.UserRepository;
 import com.thitiwas.ecoreactive.service.user.UserService;
 import com.thitiwas.ecoreactive.service.util.Constant;
 import lombok.extern.slf4j.Slf4j;
+import org.reactivestreams.Subscriber;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
@@ -35,7 +36,7 @@ public class MemberService {
     }
 
     public Mono<Boolean> validateEmail(String emailAddress) {
-        log.info("validateEmail::{}", emailAddress);
+        // log.info("validateEmail::{}", emailAddress);
         String regexPattern = "^(?=.{1,64}@)[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*@"
                 + "[^-][A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*(\\.[A-Za-z]{2,})$";
         return Mono.fromCallable(() -> Pattern.compile(regexPattern)
@@ -57,43 +58,7 @@ public class MemberService {
                         throw errorService.emailNotValid();
                     }
                 })
-                .flatMap(isValidEmail -> userService.login(login.getEmail(), login.getPassword())
-                        .flatMap(token -> userRepository.findByEmailAndType(login.getEmail(), Constant.MEMBER_TYPE)
-                                .switchIfEmpty(Mono.error(errorService::createUserNotFound))
-                                .doOnNext(this::isUserDelete)
-                                .flatMap(userEntity -> memberRepository.findByUserId(userEntity.getId())
-                                        .switchIfEmpty(Mono.error(errorService::createUserNotFound))
-                                        .doOnNext(this::isMemberDelete)
-                                        .flatMap(memberEntity -> {
-                                            memberEntity.setDeviceOs(login.getDeviceOS());
-                                            memberEntity.setClientVersion(login.getClientVersion());
-                                            memberEntity.setUpdateDate(LocalDateTime.now());
-                                            return memberRepository.save(memberEntity);
-                                        })
-                                        .flatMap(memberEntity -> formatTelnoTo10Digit(userEntity.getTelno())
-                                                .map(telnoFormated -> ResponseLogin
-                                                        .builder()
-                                                        .memberId(String.valueOf(memberEntity.getId()))
-                                                        .email(userEntity.getEmail())
-                                                        .accessToken(token)
-                                                        .firstName(memberEntity.getFirstName())
-                                                        .lastName(memberEntity.getLastName())
-                                                        .telno(telnoFormated)
-                                                        .build()
-                                                )
-                                        )
-                                )
-                        )
-                );
-
-        /* ลองใช้แบบ mono.zip แล้วช้า
-        validateEmail(login.getEmail())
-                .doOnNext(aBoolean -> {
-                    if (!aBoolean) {
-                        throw errorService.emailNotValid();
-                    }
-                })
-                .flatMap(isValidEmail -> userService.login(login.getEmail(), login.getPassword())
+                .then(userService.login(login.getEmail(), login.getPassword())
                         .flatMap(token -> userRepository.findByEmailAndType(login.getEmail(), Constant.MEMBER_TYPE)
                                 .switchIfEmpty(Mono.error(errorService::createUserNotFound))
                                 .doOnNext(this::isUserDelete)
@@ -114,10 +79,11 @@ public class MemberService {
                                                 .firstName(x.getT1().getFirstName())
                                                 .lastName(x.getT1().getLastName())
                                                 .telno(x.getT2())
-                                                .build())
+                                                .build()
+                                        )
                                 )
                         )
-                );*/
+                );
     }
 
     public void isUserDelete(UserEntity userEntity) {
@@ -133,6 +99,7 @@ public class MemberService {
     }
 
     public void isMemberDelete(MemberEntity memberEntity) {
+        // log.info("1");
         if (memberEntity.isDelete()) {
             throw errorService.unAuthorized();
         }

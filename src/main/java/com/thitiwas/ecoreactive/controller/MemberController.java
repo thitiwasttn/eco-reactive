@@ -14,6 +14,8 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
+import java.util.HashMap;
+
 @RestController
 @RequestMapping("/api/v1")
 @Slf4j
@@ -29,13 +31,14 @@ public class MemberController {
         this.responseService = responseService;
     }
 
-    @GetMapping("/member/test")
-    public Mono<MemberEntity> test() {
+    @GetMapping("/p/member/test")
+    public Mono<ResponseWrapper<Object>> test() {
 
-        Mono<MemberEntity> byId = memberRepository.findById(2L);
-        return byId.flatMap(memberEntity -> {
-            return memberRepository.save(memberEntity);
-        });
+//        Mono<MemberEntity> byId = memberRepository.findById(2L);
+        HashMap<String, String> test = new HashMap<>();
+        test.put("aaa", "1234");
+        test.put("9999", "ccccc");
+        return responseService.createResponseSuccess(test);
     }
 
     @PostMapping("/member/login")
