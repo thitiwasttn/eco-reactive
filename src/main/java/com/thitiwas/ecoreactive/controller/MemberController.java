@@ -1,18 +1,41 @@
 package com.thitiwas.ecoreactive.controller;
 
+import com.thitiwas.ecoreactive.model.CommonConstant;
+import com.thitiwas.ecoreactive.model.ResponseWrapper;
+import com.thitiwas.ecoreactive.model.member.RequestLogin;
+import com.thitiwas.ecoreactive.model.member.ResponseLogin;
+import com.thitiwas.ecoreactive.service.member.MemberService;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/v1")
 @Slf4j
 public class MemberController {
+    private final MemberService memberService;
+
+    @Autowired
+    public MemberController(MemberService memberService) {
+        this.memberService = memberService;
+    }
+
     @GetMapping("/member/test")
     public Mono<String> test() {
         return Mono.just("hello world");
+    }
+
+    @PostMapping("/member/login")
+    @Transactional
+    public Mono<ResponseWrapper<ResponseLogin>> memberLogin(@RequestBody RequestLogin login) {
+
+        Mono<ResponseLogin> ret = memberService.login(login);
+        return ret.flatMap(responseLogin -> Mono.just(ResponseWrapper.<ResponseLogin>builder()
+                .code(CommonConstant.STATUS_SUCCESS_CODE)
+                .status(CommonConstant.STATUS_SUCCESS)
+                .objectValue(responseLogin)
+                .build()));
     }
 }
