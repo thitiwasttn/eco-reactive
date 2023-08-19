@@ -37,17 +37,13 @@ public class MemberService {
         log.info("validateEmail::{}", emailAddress);
         String regexPattern = "^(?=.{1,64}@)[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*@"
                 + "[^-][A-Za-z0-9-]+(\\.[A-Za-z0-9-]+)*(\\.[A-Za-z]{2,})$";
-        return Mono.just(Pattern.compile(regexPattern)
+        return Mono.fromCallable(() -> Pattern.compile(regexPattern)
                 .matcher(emailAddress)
                 .matches());
     }
 
     Mono<Boolean> validateTelno(String telno) {
-        boolean ret = false;
-        if (telno != null && telno.length() == 10) {
-            ret = true;
-        }
-        return Mono.just(ret);
+        return Mono.fromCallable(() -> telno != null && telno.length() == 10);
     }
 
     /**
@@ -90,7 +86,6 @@ public class MemberService {
     }
 
     public void isUserDelete(UserEntity userEntity) {
-        log.info("isUserDelete");
         if (userEntity.isDelete()) {
             throw errorService.unAuthorized();
         }
@@ -103,12 +98,15 @@ public class MemberService {
     }
 
     Mono<String> formatTelnoTo10Digit(String telno) {
-        if (telno != null && !"".equals(telno)) {
-            String chkTelno = telno.substring(0, 2);
-            if (chkTelno.equals("66")) {
-                telno = "0" + telno.substring(2);
+        return Mono.fromCallable(() -> {
+            String ret = telno;
+            if (telno != null && !"".equals(telno)) {
+                String chkTelno = telno.substring(0, 2);
+                if (chkTelno.equals("66")) {
+                    ret = "0" + telno.substring(2);
+                }
             }
-        }
-        return Mono.justOrEmpty(telno);
+            return ret;
+        });
     }
 }

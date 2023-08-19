@@ -9,6 +9,7 @@ import com.thitiwas.ecoreactive.model.ResponseWrapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Mono;
 
 @Service
 public class ErrorService {
@@ -122,6 +123,20 @@ public class ErrorService {
                 .build();
         return new CustomErrorException(HttpStatus.UNAUTHORIZED, build, CommonConstant.STATUS_FAIL_CODE,
                 CommonConstant.STATUS_FAIL);
+    }
+
+    public Mono<CustomErrorException> unAuthorizedV2() {
+        return Mono.fromCallable(() -> {
+            ErrorObj build = ErrorObj.builder()
+                    .errorCode(String.valueOf(HttpStatus.UNAUTHORIZED.value()))
+                    .msgType(Constant.ERROR_MSG_TYPE_POPUP)
+                    .topicMessage("")
+                    .detailMessage("")
+                    .msg("")
+                    .build();
+            return new CustomErrorException(HttpStatus.UNAUTHORIZED, build, CommonConstant.STATUS_FAIL_CODE,
+                    CommonConstant.STATUS_FAIL);
+        });
     }
 
     public CustomErrorException invalidEmailOrPassword() {

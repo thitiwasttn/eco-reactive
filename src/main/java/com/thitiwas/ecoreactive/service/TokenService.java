@@ -25,25 +25,14 @@ public class TokenService {
     private String issuer;
 
     public Mono<String> createToken(Long userId) {
-        return Mono.fromCallable(() -> {
-            Algorithm algorithmHS = getAlgorithm(secretLogin);
-            return JWT.create()
-                    .withClaim(claimId, String.valueOf(userId))
-                    .withIssuer(issuer)
-                    .sign(algorithmHS);
-        });
-        /*Algorithm algorithmHS = getAlgorithm(secretLogin);
-        Calendar calendar = Calendar.getInstance();
-        calendar.add(Calendar.MONTH, 1);
-        String token = JWT.create()
-                .withClaim(claimId, String.valueOf(userId))
-                .withClaim("create_time", String.valueOf(calendar.getTime().getTime()))
-                .withIssuer(issuer)
-                .sign(algorithmHS);
-        return Mono.just(token);*/
+        return getAlgorithm(secretLogin)
+                .map(algorithm -> JWT.create()
+                        .withClaim(claimId, String.valueOf(userId))
+                        .withIssuer(issuer)
+                        .sign(algorithm));
     }
 
-    private Algorithm getAlgorithm(String secretLogin) {
-        return Algorithm.HMAC256(secretLogin);
+    private Mono<Algorithm> getAlgorithm(String secretLogin) {
+        return Mono.fromCallable(() -> Algorithm.HMAC256(secretLogin));
     }
 }
