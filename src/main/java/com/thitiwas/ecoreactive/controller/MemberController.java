@@ -6,6 +6,7 @@ import com.thitiwas.ecoreactive.model.ResponseWrapper;
 import com.thitiwas.ecoreactive.model.member.RequestLogin;
 import com.thitiwas.ecoreactive.model.member.ResponseLogin;
 import com.thitiwas.ecoreactive.repository.MemberRepository;
+import com.thitiwas.ecoreactive.service.ResponseService;
 import com.thitiwas.ecoreactive.service.member.MemberService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,11 +20,13 @@ import reactor.core.publisher.Mono;
 public class MemberController {
     private final MemberService memberService;
     private final MemberRepository memberRepository;
+    private final ResponseService responseService;
 
     @Autowired
-    public MemberController(MemberService memberService, MemberRepository memberRepository) {
+    public MemberController(MemberService memberService, MemberRepository memberRepository, ResponseService responseService) {
         this.memberService = memberService;
         this.memberRepository = memberRepository;
+        this.responseService = responseService;
     }
 
     @GetMapping("/member/test")
@@ -38,20 +41,7 @@ public class MemberController {
     @PostMapping("/member/login")
     @Transactional
     public Mono<ResponseWrapper<ResponseLogin>> memberLogin(@RequestBody RequestLogin login) {
-        return memberService.login(login).flatMap(this::createResponseLogin);
+        return memberService.login(login).flatMap(responseService::createResponseSuccess);
     }
-    private ResponseWrapper<ResponseLogin> createResponseLoginV2(ResponseLogin responseLogin) {
-        return ResponseWrapper.<ResponseLogin>builder()
-                .code(CommonConstant.STATUS_SUCCESS_CODE)
-                .status(CommonConstant.STATUS_SUCCESS)
-                .objectValue(responseLogin)
-                .build();
-    }
-    private Mono<ResponseWrapper<ResponseLogin>> createResponseLogin(ResponseLogin responseLogin) {
-        return Mono.fromCallable(() -> ResponseWrapper.<ResponseLogin>builder()
-                .code(CommonConstant.STATUS_SUCCESS_CODE)
-                .status(CommonConstant.STATUS_SUCCESS)
-                .objectValue(responseLogin)
-                .build());
-    }
+
 }
