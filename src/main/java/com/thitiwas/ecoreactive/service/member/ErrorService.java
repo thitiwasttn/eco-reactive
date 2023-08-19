@@ -124,13 +124,6 @@ public class ErrorService {
                 CommonConstant.STATUS_FAIL);
     }
 
-    public CustomErrorException feignClientError(ResponseEntity<ResponseWrapper> response) {
-        return new CustomErrorException(response.getStatusCode(),
-                response.getBody().getObjectValue(),
-                response.getBody().getCode(),
-                response.getBody().getStatus());
-    }
-
     public CustomErrorException invalidEmailOrPassword() {
         ErrorObj build = ErrorObj.builder()
                 .errorCode(String.valueOf(HttpStatus.UNAUTHORIZED.value()))

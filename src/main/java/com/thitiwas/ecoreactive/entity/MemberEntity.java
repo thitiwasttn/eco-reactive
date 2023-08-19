@@ -19,6 +19,7 @@ import java.util.Date;
 public class MemberEntity {
 
     @Id
+    @Column("id")
     private Long id;
 
     @Column("first_name")

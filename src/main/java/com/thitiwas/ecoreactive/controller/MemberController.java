@@ -1,9 +1,11 @@
 package com.thitiwas.ecoreactive.controller;
 
+import com.thitiwas.ecoreactive.entity.MemberEntity;
 import com.thitiwas.ecoreactive.model.CommonConstant;
 import com.thitiwas.ecoreactive.model.ResponseWrapper;
 import com.thitiwas.ecoreactive.model.member.RequestLogin;
 import com.thitiwas.ecoreactive.model.member.ResponseLogin;
+import com.thitiwas.ecoreactive.repository.MemberRepository;
 import com.thitiwas.ecoreactive.service.member.MemberService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,15 +18,21 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class MemberController {
     private final MemberService memberService;
+    private final MemberRepository memberRepository;
 
     @Autowired
-    public MemberController(MemberService memberService) {
+    public MemberController(MemberService memberService, MemberRepository memberRepository) {
         this.memberService = memberService;
+        this.memberRepository = memberRepository;
     }
 
     @GetMapping("/member/test")
-    public Mono<String> test() {
-        return Mono.just("hello world");
+    public Mono<MemberEntity> test() {
+
+        Mono<MemberEntity> byId = memberRepository.findById(2L);
+        return byId.flatMap(memberEntity -> {
+            return memberRepository.save(memberEntity);
+        });
     }
 
     @PostMapping("/member/login")

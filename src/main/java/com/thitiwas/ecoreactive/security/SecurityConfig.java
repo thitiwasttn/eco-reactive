@@ -5,6 +5,8 @@ import com.auth0.jwt.algorithms.Algorithm;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.reactive.EnableWebFluxSecurity;
 import org.springframework.security.config.web.server.SecurityWebFiltersOrder;
 import org.springframework.security.config.web.server.ServerHttpSecurity;
@@ -12,6 +14,7 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 
 
 @Slf4j
+@Configuration
 @EnableWebFluxSecurity
 public class SecurityConfig {
 
@@ -24,7 +27,6 @@ public class SecurityConfig {
 
     private final String[] PUBLIC_ACCESS_PATHS = new String[]{
             "/api/v1/member/login",
-            "/api/v1/member/test",
             "/"
     };
 
@@ -37,7 +39,8 @@ public class SecurityConfig {
         return new AuthTokenServiceImpl(getAlgorithm(AUTH_TOKEN_SECRET_KEY));
     }
 
-    @Bean
+
+    /*@Bean
     public SecurityWebFilterChain securityWebFilterChain(final ServerHttpSecurity http) {
         return http
                 .securityContextRepository(new AuthServerSecurityContextRepository())
@@ -59,6 +62,48 @@ public class SecurityConfig {
                 )
                 .build();
 
+
+
+//        http.csrf().disable();
+    }*/
+
+    @Bean
+    public SecurityWebFilterChain securityWebFilterChain(final ServerHttpSecurity http) {
+        /*return http
+                .securityContextRepository(new AuthServerSecurityContextRepository())
+                .exceptionHandling(exceptionHandlingSpec -> exceptionHandlingSpec
+                        .accessDeniedHandler(new AuthServerAccessDeniedHandler()))
+                .logout(logoutSpec -> logoutSpec.disable()
+                        .csrf(csrfSpec -> csrfSpec.disable()
+                        .authorizeExchange(authorizeExchangeSpec -> authorizeExchangeSpec.pathMatchers(PUBLIC_ACCESS_PATHS).permitAll()
+                                .anyExchange().authenticated())))
+                .addFilterAt(
+                        new AuthTokenWebFilter(
+                                authTokenService(),
+                                new DefaultUserDetailsJwtClaimsConverterImpl(),
+                                new AuthServerSecurityContextRepository()
+                        ),
+                        SecurityWebFiltersOrder.AUTHENTICATION
+                )
+                .build();*/
+
+        return http
+                .securityContextRepository(new AuthServerSecurityContextRepository())
+                .exceptionHandling(exceptionHandlingSpec -> exceptionHandlingSpec.accessDeniedHandler(new AuthServerAccessDeniedHandler()))
+                .logout(ServerHttpSecurity.LogoutSpec::disable)
+                .csrf(ServerHttpSecurity.CsrfSpec::disable)
+                .authorizeExchange(authorizeExchangeSpec -> authorizeExchangeSpec
+                        .pathMatchers(PUBLIC_ACCESS_PATHS).permitAll()
+                        .anyExchange().authenticated())
+                .addFilterAt(
+                        new AuthTokenWebFilter(
+                                authTokenService(),
+                                new DefaultUserDetailsJwtClaimsConverterImpl(),
+                                new AuthServerSecurityContextRepository()
+                        ),
+                        SecurityWebFiltersOrder.AUTHENTICATION
+                )
+                .build();
 
 
 //        http.csrf().disable();

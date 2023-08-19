@@ -33,14 +33,14 @@ public class UserEntity {
     @Column("create_date")
     private LocalDateTime createDate;
 
-    @Column("create_by")
-    private Long createBy;
+/*    @Column("create_by")
+    private Long createBy;*/
 
     @Column("update_date")
     private LocalDateTime updateDate;
 
-    @Column("update_by")
-    private Long updateBy;
+/*    @Column("update_by")
+    private Long updateBy;*/
 
     @Column("type")
     private String type;
@@ -52,5 +52,5 @@ public class UserEntity {
     private String telno;
 
     @Column("is_confirm")
-    private boolean isConfirm;
+    private Boolean isConfirm;
 }

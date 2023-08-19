@@ -71,38 +71,31 @@ public class MemberService {
 */
 
 
-        return accessToken.flatMap(token -> {
-            return userEntity.switchIfEmpty(Mono.error(errorService::createUserNotFound))
-                    .flatMap(userEntity1 -> userEntity1.isDelete() ? Mono.error(errorService.unAuthorized()) : Mono.just(userEntity1))
-                    .flatMap(userEntity1 -> {
-                        return formatTelnoTo10Digit(userEntity1.getTelno()).flatMap(telnoFormated -> {
-                            return memberRepository.findByUserId(userEntity1.getId())
-                                    .switchIfEmpty(Mono.error(errorService::createUserNotFound))
-                                    .flatMap(memberEntity -> {
-                                        if (memberEntity.isDelete()) {
-                                            log.info("member is deleted");
-                                            return Mono.error(errorService.unAuthorized());
-                                        } else {
-                                            return Mono.just(memberEntity);
-                                        }
-                                    }).flatMap(memberEntity -> {
-                                        memberEntity.setDeviceOs(login.getDeviceOS());
-                                        memberEntity.setClientVersion(login.getClientVersion());
-                                        return memberRepository.save(memberEntity);
-                                    }).flatMap(memberEntity -> {
-                                        return Mono.just(ResponseLogin
-                                                .builder()
-                                                .memberId(String.valueOf(memberEntity.getId()))
-                                                .email(userEntity1.getEmail())
-                                                .accessToken(token)
-                                                .firstName(memberEntity.getFirstName())
-                                                .lastName(memberEntity.getLastName())
-                                                .telno(telnoFormated)
-                                                .build());
-                                    });
-                        });
-                    });
-        });
+        return accessToken.flatMap(token -> userEntity.switchIfEmpty(Mono.error(errorService::createUserNotFound))
+                .flatMap(userEntity1 -> userEntity1.isDelete() ? Mono.error(errorService.unAuthorized()) : Mono.just(userEntity1))
+                .flatMap(userEntity1 -> formatTelnoTo10Digit(userEntity1.getTelno())
+                        .flatMap(telnoFormated -> memberRepository.findByUserId(userEntity1.getId())
+                                .switchIfEmpty(Mono.error(errorService::createUserNotFound))
+                                .flatMap(memberEntity -> {
+                                    if (memberEntity.isDelete()) {
+                                        log.info("member is deleted");
+                                        return Mono.error(errorService.unAuthorized());
+                                    } else {
+                                        return Mono.just(memberEntity);
+                                    }
+                                }).flatMap(memberEntity -> {
+                                    memberEntity.setDeviceOs(login.getDeviceOS());
+                                    memberEntity.setClientVersion(login.getClientVersion());
+                                    return memberRepository.save(memberEntity);
+                                }).flatMap(memberEntity -> Mono.just(ResponseLogin
+                                        .builder()
+                                        .memberId(String.valueOf(memberEntity.getId()))
+                                        .email(userEntity1.getEmail())
+                                        .accessToken(token)
+                                        .firstName(memberEntity.getFirstName())
+                                        .lastName(memberEntity.getLastName())
+                                        .telno(telnoFormated)
+                                        .build())))));
     }
 
     Mono<String> formatTelnoTo10Digit(String telno) {
