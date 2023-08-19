@@ -29,17 +29,19 @@ public class UserService {
     }
 
     public Mono<String> login(String email, String password) {
-        return userRepository.customFindByEmailAndPasswordAndConfirm(email, password, 1)
+        return Mono.defer(() -> userRepository.customFindByEmailAndPasswordAndConfirm(email, password, 1)
                 .switchIfEmpty(Mono.error(errorService.invalidEmailOrPassword()))
                 // .doOnNext(userEntity -> log.info("xx"))
                 .flatMap(userEntity -> tokenService.createToken(userEntity.getId())
                         .flatMap(s -> updateUserToken(userEntity, s)))
-                .map(UserEntity::getAccessToken);
+                .map(UserEntity::getAccessToken));
     }
 
     Mono<UserEntity> updateUserToken(UserEntity user, String token) {
-        user.setAccessToken(token);
-        user.setUpdateDate(LocalDateTime.now());
-        return userRepository.save(user);
+        return Mono.defer(() -> {
+            user.setAccessToken(token);
+            user.setUpdateDate(LocalDateTime.now());
+            return userRepository.save(user);
+        });
     }
 }

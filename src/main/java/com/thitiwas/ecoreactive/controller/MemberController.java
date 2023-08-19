@@ -38,12 +38,20 @@ public class MemberController {
     @PostMapping("/member/login")
     @Transactional
     public Mono<ResponseWrapper<ResponseLogin>> memberLogin(@RequestBody RequestLogin login) {
-
-        Mono<ResponseLogin> ret = memberService.login(login);
-        return ret.flatMap(responseLogin -> Mono.just(ResponseWrapper.<ResponseLogin>builder()
+        return memberService.login(login).flatMap(this::createResponseLogin);
+    }
+    private ResponseWrapper<ResponseLogin> createResponseLoginV2(ResponseLogin responseLogin) {
+        return ResponseWrapper.<ResponseLogin>builder()
                 .code(CommonConstant.STATUS_SUCCESS_CODE)
                 .status(CommonConstant.STATUS_SUCCESS)
                 .objectValue(responseLogin)
-                .build()));
+                .build();
+    }
+    private Mono<ResponseWrapper<ResponseLogin>> createResponseLogin(ResponseLogin responseLogin) {
+        return Mono.fromCallable(() -> ResponseWrapper.<ResponseLogin>builder()
+                .code(CommonConstant.STATUS_SUCCESS_CODE)
+                .status(CommonConstant.STATUS_SUCCESS)
+                .objectValue(responseLogin)
+                .build());
     }
 }

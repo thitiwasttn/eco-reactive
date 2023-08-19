@@ -83,6 +83,39 @@ public class MemberService {
                                 )
                         )
                 );
+
+        /* ลองใช้แบบ mono.zip แล้วช้า
+        validateEmail(login.getEmail())
+                .doOnNext(aBoolean -> {
+                    if (!aBoolean) {
+                        throw errorService.emailNotValid();
+                    }
+                })
+                .flatMap(isValidEmail -> userService.login(login.getEmail(), login.getPassword())
+                        .flatMap(token -> userRepository.findByEmailAndType(login.getEmail(), Constant.MEMBER_TYPE)
+                                .switchIfEmpty(Mono.error(errorService::createUserNotFound))
+                                .doOnNext(this::isUserDelete)
+                                .flatMap(userEntity -> Mono.zip(memberRepository.findByUserId(userEntity.getId())
+                                                .switchIfEmpty(Mono.error(errorService::createUserNotFound))
+                                                .doOnNext(this::isMemberDelete)
+                                                .flatMap(memberEntity -> {
+                                                    memberEntity.setDeviceOs(login.getDeviceOS());
+                                                    memberEntity.setClientVersion(login.getClientVersion());
+                                                    memberEntity.setUpdateDate(LocalDateTime.now());
+                                                    return memberRepository.save(memberEntity);
+                                                }), formatTelnoTo10Digit(userEntity.getTelno()))
+                                        .map(x -> ResponseLogin
+                                                .builder()
+                                                .memberId(String.valueOf(x.getT1().getId()))
+                                                .email(userEntity.getEmail())
+                                                .accessToken(token)
+                                                .firstName(x.getT1().getFirstName())
+                                                .lastName(x.getT1().getLastName())
+                                                .telno(x.getT2())
+                                                .build())
+                                )
+                        )
+                );*/
     }
 
     public void isUserDelete(UserEntity userEntity) {
