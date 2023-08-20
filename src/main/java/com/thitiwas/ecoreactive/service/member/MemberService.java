@@ -3,6 +3,7 @@ package com.thitiwas.ecoreactive.service.member;
 import com.thitiwas.ecoreactive.entity.MemberEntity;
 import com.thitiwas.ecoreactive.entity.MemberRegisterOTPEntity;
 import com.thitiwas.ecoreactive.entity.UserEntity;
+import com.thitiwas.ecoreactive.exception.CustomErrorException;
 import com.thitiwas.ecoreactive.model.auth.CreateUserM;
 import com.thitiwas.ecoreactive.model.member.RequestLogin;
 import com.thitiwas.ecoreactive.model.member.RequestRegisterM;
@@ -151,19 +152,10 @@ public class MemberService {
 
     public Mono<ResponseRegisterM> register(RequestRegisterM requestRegister) {
         Mono<Boolean> validateEmail = validateEmail(requestRegister.getEmail())
-                .doOnNext(aBoolean -> {
-                    if (!aBoolean) {
-                        throw errorService.emailNotValid();
-                    }
-                }).log("validateEmail::");
+                .doOnNext(aBoolean -> ifFalseThrow(aBoolean, errorService.emailNotValid()));
+
         Mono<Boolean> validateTelno = validateTelno(requestRegister.getTelno())
-                .doOnNext(aBoolean -> {
-                    if (!aBoolean) {
-                        throw errorService.telnoNotValid();
-                    }
-                }).log("validateTelno::");
-        /*Mono<Void> telno = formatTelnoTo10Digit(requestRegisterM.getTelno())
-                .doOnNext(requestRegisterM::setTelno).then();*/
+                .doOnNext(aBoolean -> ifFalseThrow(aBoolean, errorService.telnoNotValid()));
 
         return validateTelno.then(validateEmail)
                 .then(formatTelnoToUniversal(requestRegister.getTelno()))
@@ -213,6 +205,12 @@ public class MemberService {
                                     })
                             );
                 });
+    }
+
+    public void ifFalseThrow(Boolean aBoolean, CustomErrorException e) {
+        if (!aBoolean) {
+            throw e;
+        }
     }
 
     public void checkUserExist(UserEntity userEntity) {
