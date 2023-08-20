@@ -132,60 +132,84 @@ public class MemberService {
                     ret = "0" + telno.substring(2);
                 }
             }
+            log.info("ret: {}", ret);
             return ret;
         });
     }
 
-    public Mono<ResponseRegisterM> register(RequestRegisterM requestRegisterM) {
-        Mono<Boolean> validateEmail = validateEmail(requestRegisterM.getEmail())
+    Mono<String> formatTelnoToUniversal(String telno) {
+        return Mono.fromCallable(() -> {
+            String ret = telno;
+            if (ret != null && !"".equals(telno)) {
+                String chkTelno = telno.substring(0, 1);
+                if (chkTelno.equals("0")) {
+                    ret = "66" + telno.substring(1);
+                }
+            }
+            return ret;
+        });
+    }
+
+    public Mono<ResponseRegisterM> register(RequestRegisterM requestRegister) {
+        Mono<Boolean> validateEmail = validateEmail(requestRegister.getEmail())
                 .doOnNext(aBoolean -> {
                     if (!aBoolean) {
                         throw errorService.emailNotValid();
                     }
                 });
-        Mono<Boolean> validateTelno = validateTelno(requestRegisterM.getTelno())
+        Mono<Boolean> validateTelno = validateTelno(requestRegister.getTelno())
                 .doOnNext(aBoolean -> {
                     if (!aBoolean) {
                         throw errorService.telnoNotValid();
                     }
                 });
-        Mono<Void> telno = formatTelnoTo10Digit(requestRegisterM.getTelno())
-                .doOnNext(requestRegisterM::setTelno).then();
+        /*Mono<Void> telno = formatTelnoTo10Digit(requestRegisterM.getTelno())
+                .doOnNext(requestRegisterM::setTelno).then();*/
 
-        return Mono.when(validateEmail, validateTelno, telno)
-                .then(userRepository.findByEmailAndType(requestRegisterM.getEmail(), Constant.MEMBER_TYPE)
-                        .log()
-                        .doOnNext(userEntity -> {
-                            if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
-                                throw errorService.emailIsAlreadyExist();
-                            }
-                        }).flatMap(userEntity -> {
-                            CreateUserM createUserM = new CreateUserM();
-                            createUserM.setEmail(requestRegisterM.getEmail());
-                            createUserM.setPassword(requestRegisterM.getPassword());
-                            createUserM.setTelno(requestRegisterM.getTelno());
-                            createUserM.setType(Constant.MEMBER_TYPE);
-                            return userService.createUserMember(createUserM).log();
-                        }).flatMap(responseCreateUser -> createOrUpdateMember(requestRegisterM, responseCreateUser.getId())
-                                .flatMap(member -> {
-                                    return pdpaService.acceptLastPDPAWithMemberId(member.getId())
-                                            .then(logMemberRegisterService.saveLogRegister(member.getId(), requestRegisterM.getDeviceOS()))
-                                            .then(createOrUpdateRegisterOTP(member));
-                                    // return Mono.when(voidMono, voidMono1).then(Mono.defer(() -> orUpdateRegisterOTP));
-                                }).flatMap(memberRegisterOTPEntity -> sendRegisterOtpMail(requestRegisterM.getEmail(), memberRegisterOTPEntity.getRef(), memberRegisterOTPEntity.getOtp())
-                                        .then(Mono.fromCallable(() -> memberRegisterOTPEntity))
-                                ).map(memberRegisterOTPEntity -> {
-                                    LocalDateTime expireDate = memberRegisterOTPEntity.getExpireDate();
-                                    Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
-                                    Date date = Date.from(instant);
-                                    long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
-                                    return ResponseRegisterM.builder()
-                                            .ref(memberRegisterOTPEntity.getRef())
-                                            .expiredSecond(String.valueOf(timeExpiredInSecond))
-                                            .build();
-                                })
-                        )
-                );
+        return validateTelno.then(validateEmail)
+                .then(formatTelnoToUniversal(requestRegister.getTelno()))
+                .map(string -> {
+                    log.info("string :{}", string);
+                    requestRegister.setTelno(string);
+                    return requestRegister;
+                })
+                .flatMap(requestRegisterM -> {
+                    log.info("xxx :{}", requestRegisterM.getTelno());
+                    return userRepository.findByEmailAndType(requestRegisterM.getEmail(), Constant.MEMBER_TYPE)
+                            .doOnNext(userEntity -> {
+                                log.info("telno: {}", requestRegisterM.getTelno());
+                                if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
+                                    throw errorService.emailIsAlreadyExist();
+                                }
+                            }).flatMap(userEntity -> {
+                                CreateUserM createUserM = new CreateUserM();
+                                createUserM.setEmail(requestRegisterM.getEmail());
+                                createUserM.setPassword(requestRegisterM.getPassword());
+                                createUserM.setTelno(requestRegisterM.getTelno());
+                                createUserM.setType(Constant.MEMBER_TYPE);
+                                return userService.createUserMember(createUserM).log();
+                            }).flatMap(responseCreateUser -> {
+                                        return createOrUpdateMember(requestRegisterM, responseCreateUser.getId())
+                                                .flatMap(member -> {
+                                                    return pdpaService.acceptLastPDPAWithMemberId(member.getId())
+                                                            .then(logMemberRegisterService.saveLogRegister(member.getId(), requestRegisterM.getDeviceOS()))
+                                                            .then(createOrUpdateRegisterOTP(member));
+                                                    // return Mono.when(voidMono, voidMono1).then(Mono.defer(() -> orUpdateRegisterOTP));
+                                                }).flatMap(memberRegisterOTPEntity -> sendRegisterOtpMail(requestRegisterM.getEmail(), memberRegisterOTPEntity.getRef(), memberRegisterOTPEntity.getOtp())
+                                                        .then(Mono.fromCallable(() -> memberRegisterOTPEntity))
+                                                ).map(memberRegisterOTPEntity -> {
+                                                    LocalDateTime expireDate = memberRegisterOTPEntity.getExpireDate();
+                                                    Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
+                                                    Date date = Date.from(instant);
+                                                    long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
+                                                    return ResponseRegisterM.builder()
+                                                            .ref(memberRegisterOTPEntity.getRef())
+                                                            .expiredSecond(String.valueOf(timeExpiredInSecond))
+                                                            .build();
+                                                });
+                                    }
+                            );
+                });
     }
 
     Mono<Void> sendRegisterOtpMail(String email, String ref, String otp) {
