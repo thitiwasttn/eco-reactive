@@ -168,20 +168,20 @@ public class MemberService {
                             return userService.createUserMember(createUserM).log();
                         }).flatMap(responseCreateUser -> createOrUpdateMember(requestRegisterM, responseCreateUser.getId())
                                 .flatMap(member -> {
-                                    Mono<MemberRegisterOTPEntity> orUpdateRegisterOTP = createOrUpdateRegisterOTP(member);
-                                    Mono<Void> voidMono = pdpaService.acceptLastPDPAWithMemberId(member.getId());
-                                    Mono<Void> voidMono1 = logMemberRegisterService.saveLogRegister(member.getId(), requestRegisterM.getDeviceOS());
-                                    return voidMono.then(voidMono1).then(orUpdateRegisterOTP).log("xxxa123");
-                                }).flatMap(objects1 -> sendRegisterOtpMail(requestRegisterM.getEmail(), objects1.getRef(), objects1.getOtp())
-                                        .then(Mono.fromCallable(() -> objects1))
-                                ).map(tuple3Mono -> {
-                                    LocalDateTime expireDate = tuple3Mono.getExpireDate();
+                                    return pdpaService.acceptLastPDPAWithMemberId(member.getId())
+                                            .then(logMemberRegisterService.saveLogRegister(member.getId(), requestRegisterM.getDeviceOS()))
+                                            .then(createOrUpdateRegisterOTP(member));
+                                    // return Mono.when(voidMono, voidMono1).then(Mono.defer(() -> orUpdateRegisterOTP));
+                                }).flatMap(memberRegisterOTPEntity -> sendRegisterOtpMail(requestRegisterM.getEmail(), memberRegisterOTPEntity.getRef(), memberRegisterOTPEntity.getOtp())
+                                        .then(Mono.fromCallable(() -> memberRegisterOTPEntity))
+                                ).map(memberRegisterOTPEntity -> {
+                                    LocalDateTime expireDate = memberRegisterOTPEntity.getExpireDate();
                                     Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
                                     Date date = Date.from(instant);
                                     long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
                                     log.info("lastxxx");
                                     return ResponseRegisterM.builder()
-                                            .ref(tuple3Mono.getRef())
+                                            .ref(memberRegisterOTPEntity.getRef())
                                             .expiredSecond(String.valueOf(timeExpiredInSecond))
                                             .build();
                                 })
