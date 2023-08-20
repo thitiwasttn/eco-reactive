@@ -159,18 +159,18 @@ public class MemberService {
 
         return validateTelno.then(validateEmail)
                 .then(formatTelnoToUniversal(requestRegister.getTelno()))
-                .flatMap(string -> {
+                .map(string -> {
                     requestRegister.setTelno(string);
-                    return Mono.zip(Mono.just(requestRegister), userRepository.findByEmailAndType(requestRegister.getEmail(), Constant.MEMBER_TYPE)
-                            .doOnNext(userEntity -> {
-                                if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
-                                    throw errorService.emailIsAlreadyExist();
-                                }
-                            })
-                    );
+                    return requestRegister;
                 })
+                .flatMap(requestRegisterMap -> Mono.zip(Mono.just(requestRegisterMap), userRepository.findByEmailAndType(requestRegisterMap.getEmail(), Constant.MEMBER_TYPE)
+                                .doOnNext(userEntity -> {
+                                    if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
+                                        throw errorService.emailIsAlreadyExist();
+                                    }
+                                })
+                ))
                 .flatMap(zip -> {
-                    // log.info("requestRegisterM :{}", requestRegisterM.getTelno());
                     RequestRegisterM requestRegisterM = zip.getT1();
                     return userRepository.findByEmailAndType(requestRegisterM.getEmail(), Constant.MEMBER_TYPE)
                             .doOnNext(this::checkUserExist)
