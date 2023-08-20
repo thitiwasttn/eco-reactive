@@ -1,4 +1,4 @@
-package com.thitiwas.ecoreactive.controller;
+package com.thitiwas.ecoreactive.controller.member;
 
 import com.thitiwas.ecoreactive.entity.MemberEntity;
 import com.thitiwas.ecoreactive.model.CommonConstant;
