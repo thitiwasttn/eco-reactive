@@ -1,20 +1,28 @@
 package com.thitiwas.ecoreactive.service.member;
 
 import com.thitiwas.ecoreactive.entity.MemberEntity;
+import com.thitiwas.ecoreactive.entity.MemberRegisterOTPEntity;
 import com.thitiwas.ecoreactive.entity.UserEntity;
+import com.thitiwas.ecoreactive.model.auth.CreateUserM;
 import com.thitiwas.ecoreactive.model.member.RequestLogin;
+import com.thitiwas.ecoreactive.model.member.RequestRegisterM;
 import com.thitiwas.ecoreactive.model.member.ResponseLogin;
+import com.thitiwas.ecoreactive.model.member.ResponseRegisterM;
+import com.thitiwas.ecoreactive.repository.MemberRegisterOTPRepository;
 import com.thitiwas.ecoreactive.repository.MemberRepository;
 import com.thitiwas.ecoreactive.repository.UserRepository;
 import com.thitiwas.ecoreactive.service.user.UserService;
 import com.thitiwas.ecoreactive.service.util.Constant;
 import lombok.extern.slf4j.Slf4j;
-import org.reactivestreams.Subscriber;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -26,13 +34,23 @@ public class MemberService {
 
     private final UserService userService;
     private final UserRepository userRepository;
+    private final PDPAService pdpaService;
+
+    private final MemberRegisterOTPRepository memberRegisterOTPRepository;
+    private final StringUtil stringUtil;
+
+    private final LogMemberRegisterService logMemberRegisterService;
 
     @Autowired
-    public MemberService(MemberRepository memberRepository, ErrorService errorService, UserService userService, UserRepository userRepository) {
+    public MemberService(MemberRepository memberRepository, ErrorService errorService, UserService userService, UserRepository userRepository, PDPAService pdpaService, MemberRegisterOTPRepository memberRegisterOTPRepository, StringUtil stringUtil, LogMemberRegisterService logMemberRegisterService) {
         this.memberRepository = memberRepository;
         this.errorService = errorService;
         this.userService = userService;
         this.userRepository = userRepository;
+        this.pdpaService = pdpaService;
+        this.memberRegisterOTPRepository = memberRegisterOTPRepository;
+        this.stringUtil = stringUtil;
+        this.logMemberRegisterService = logMemberRegisterService;
     }
 
     public Mono<Boolean> validateEmail(String emailAddress) {
@@ -116,5 +134,115 @@ public class MemberService {
             }
             return ret;
         });
+    }
+
+    public Mono<ResponseRegisterM> register(RequestRegisterM requestRegisterM) {
+        Mono<Boolean> validateEmail = validateEmail(requestRegisterM.getEmail())
+                .doOnNext(aBoolean -> {
+                    if (!aBoolean) {
+                        throw errorService.emailNotValid();
+                    }
+                });
+        Mono<Boolean> validateTelno = validateTelno(requestRegisterM.getTelno())
+                .doOnNext(aBoolean -> {
+                    if (!aBoolean) {
+                        throw errorService.telnoNotValid();
+                    }
+                });
+        Mono<Void> telno = formatTelnoTo10Digit(requestRegisterM.getTelno())
+                .doOnNext(requestRegisterM::setTelno).then();
+
+        return Mono.when(validateEmail, validateTelno, telno)
+                .then(userRepository.findByEmailAndType(requestRegisterM.getEmail(), Constant.MEMBER_TYPE)
+                        .log()
+                        .doOnNext(userEntity -> {
+                            if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
+                                throw errorService.emailIsAlreadyExist();
+                            }
+                        }).flatMap(userEntity -> {
+                            CreateUserM createUserM = new CreateUserM();
+                            createUserM.setEmail(requestRegisterM.getEmail());
+                            createUserM.setPassword(requestRegisterM.getPassword());
+                            createUserM.setTelno(requestRegisterM.getTelno());
+                            createUserM.setType("MEMBER");
+                            return userService.createUserMember(createUserM).log();
+                        }).flatMap(responseCreateUser -> createOrUpdateMember(requestRegisterM, responseCreateUser.getId())
+                                .flatMap(member -> {
+                                    Mono<MemberRegisterOTPEntity> orUpdateRegisterOTP = createOrUpdateRegisterOTP(member);
+                                    Mono<Void> voidMono = pdpaService.acceptLastPDPAWithMemberId(member.getId());
+                                    Mono<Void> voidMono1 = logMemberRegisterService.saveLogRegister(member.getId(), requestRegisterM.getDeviceOS());
+                                    return voidMono.then(voidMono1).then(orUpdateRegisterOTP).log("xxxa123");
+                                }).flatMap(objects1 -> sendRegisterOtpMail(requestRegisterM.getEmail(), objects1.getRef(), objects1.getOtp())
+                                        .then(Mono.fromCallable(() -> objects1))
+                                ).map(tuple3Mono -> {
+                                    LocalDateTime expireDate = tuple3Mono.getExpireDate();
+                                    Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
+                                    Date date = Date.from(instant);
+                                    long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
+                                    log.info("lastxxx");
+                                    return ResponseRegisterM.builder()
+                                            .ref(tuple3Mono.getRef())
+                                            .expiredSecond(String.valueOf(timeExpiredInSecond))
+                                            .build();
+                                })
+                        )
+                );
+    }
+
+    Mono<Void> sendRegisterOtpMail(String email, String ref, String otp) {
+        //
+        return Mono.empty();
+    }
+
+    public Mono<MemberRegisterOTPEntity> createOrUpdateRegisterOTP(MemberEntity member) {
+        Mono<MemberRegisterOTPEntity> memberRegisterOTPEntityMono = memberRegisterOTPRepository.findByMemberId(member.getId())
+                .defaultIfEmpty(new MemberRegisterOTPEntity());
+        return Mono.zip(memberRegisterOTPEntityMono, stringUtil.genOTP(), stringUtil.genRef())
+                .flatMap(zip -> {
+                    LocalDateTime current = LocalDateTime.now();
+                    Calendar expireDate = Calendar.getInstance();
+                    expireDate.add(Calendar.MINUTE, 5);
+                    LocalDateTime la = expireDate.toInstant().atZone(ZoneId.systemDefault()).toLocalDateTime();
+                    MemberRegisterOTPEntity registerOTP = zip.getT1();
+                    registerOTP.setMemberId(member.getId());
+                    registerOTP.setRef(zip.getT3());
+                    registerOTP.setOtp(zip.getT2());
+                    registerOTP.setExpireDate(la);
+                    registerOTP.setCreateDate(current);
+                    registerOTP.setCreateBy(0L);
+                    registerOTP.setUpdateDate(current);
+                    registerOTP.setUpdateBy(0L);
+                    return memberRegisterOTPRepository.save(registerOTP);
+                })
+                .log("createOrUpdateRegisterOTP::");
+    }
+
+    private Mono<MemberEntity> createOrUpdateMember(RequestRegisterM requestRegister, Long userId) {
+        return Mono.defer(() -> memberRepository.findByUserId(userId)
+                .defaultIfEmpty(new MemberEntity())
+                .flatMap(member -> {
+                    log.info("createOrUpdateMember:: {}", member);
+                    // Date current = Calendar.getInstance().getTime();
+                    LocalDateTime current = LocalDateTime.now();
+                    if (member.isDelete()) {
+                        member = new MemberEntity();
+                    }
+                    member.setFirstName(requestRegister.getFirstName());
+                    member.setLastName(requestRegister.getLastName());
+                    member.setBirthDate(requestRegister.getBirthDay());
+                    member.setGender(requestRegister.getGender());
+                    member.setStatus("A");
+                    member.setDelete(false);
+                    member.setDeviceOs(requestRegister.getDeviceOS());
+                    member.setClientVersion(requestRegister.getClientVersion());
+                    member.setCreateDate(current);
+                    member.setCreateBy(0L);
+                    member.setUpdateDate(current);
+                    member.setUpdateBy(0L);
+                    member.setUserId(userId);
+                    member.setCoin("0");
+                    return memberRepository.save(member);
+                })
+        );
     }
 }

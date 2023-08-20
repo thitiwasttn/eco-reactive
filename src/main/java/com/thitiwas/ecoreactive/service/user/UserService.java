@@ -1,9 +1,13 @@
 package com.thitiwas.ecoreactive.service.user;
 
 import com.thitiwas.ecoreactive.entity.UserEntity;
+import com.thitiwas.ecoreactive.model.auth.CreateUserM;
+import com.thitiwas.ecoreactive.model.auth.ResponseCreateUser;
+import com.thitiwas.ecoreactive.model.member.ResponseRegisterM;
 import com.thitiwas.ecoreactive.repository.UserRepository;
 import com.thitiwas.ecoreactive.service.TokenService;
 import com.thitiwas.ecoreactive.service.member.ErrorService;
+import com.thitiwas.ecoreactive.service.util.Constant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -43,5 +47,51 @@ public class UserService {
             user.setUpdateDate(LocalDateTime.now());
             return userRepository.save(user);
         });
+    }
+
+    public Mono<ResponseCreateUser> createUserMember(CreateUserM createUser) {
+        log.info("createUser :{}", createUser);
+        Mono<UserEntity> userEntityMono = userRepository.findByEmailAndType(createUser.getEmail(), Constant.MEMBER_TYPE)
+                .doOnNext(userEntity -> {
+                    if (userEntity.getIsConfirm()) {
+                        throw errorService.emailIsAlreadyExist();
+                    }
+                }).defaultIfEmpty(new UserEntity());
+
+        Mono<UserEntity> byTelnoAndType = userRepository.findByTelnoAndType(createUser.getTelno(), Constant.MEMBER_TYPE)
+                .doOnNext(userEntity -> {
+                    if (userEntity.getIsConfirm()) {
+                        throw errorService.telNoIsAlreadyExist();
+                    }
+                }).defaultIfEmpty(new UserEntity());
+        Mono<UserEntity> userEntityMono1 = userRepository.customFindByEmailAndTelnoAndConfirmAndMember(createUser.getEmail(), createUser.getTelno(), 0);
+
+        Mono<ResponseCreateUser> ret = userEntityMono1
+                .defaultIfEmpty(new UserEntity())
+                .flatMap(user -> {
+                    Long updateBy = 0L;
+                    user.setEmail(createUser.getEmail());
+                    user.setPassword(createUser.getPassword());
+                    user.setCreateDate(LocalDateTime.now());
+                    user.setCreateBy(updateBy);
+                    user.setUpdateDate(LocalDateTime.now());
+                    user.setUpdateBy(updateBy);
+                    user.setType(createUser.getType());
+                    user.setDelete(false);
+                    user.setIsConfirm(false);
+                    user.setTelno(createUser.getTelno());
+
+                    return userRepository.save(user);
+                }).map(userEntity -> {
+                    ResponseCreateUser build = ResponseCreateUser
+                            .builder()
+                            .id(userEntity.getId())
+                            .build();
+                    log.info("createUserMember:: {}", build);
+                    return build;
+                });
+        return userEntityMono
+                .then(byTelnoAndType)
+                .flatMap(userEntity -> ret);
     }
 }

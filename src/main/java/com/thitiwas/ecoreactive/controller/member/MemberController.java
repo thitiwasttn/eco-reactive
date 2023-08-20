@@ -1,20 +1,27 @@
 package com.thitiwas.ecoreactive.controller.member;
 
-import com.thitiwas.ecoreactive.entity.MemberEntity;
-import com.thitiwas.ecoreactive.model.CommonConstant;
+import com.thitiwas.ecoreactive.entity.MemberRegisterOTPEntity;
+import com.thitiwas.ecoreactive.entity.UserEntity;
 import com.thitiwas.ecoreactive.model.ResponseWrapper;
 import com.thitiwas.ecoreactive.model.member.RequestLogin;
 import com.thitiwas.ecoreactive.model.member.ResponseLogin;
+import com.thitiwas.ecoreactive.repository.MemberRegisterOTPRepository;
 import com.thitiwas.ecoreactive.repository.MemberRepository;
+import com.thitiwas.ecoreactive.repository.UserRepository;
 import com.thitiwas.ecoreactive.service.ResponseService;
 import com.thitiwas.ecoreactive.service.member.MemberService;
+import com.thitiwas.ecoreactive.service.member.StringUtil;
+import com.thitiwas.ecoreactive.service.util.Constant;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Mono;
 
-import java.util.HashMap;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.util.Calendar;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -23,22 +30,25 @@ public class MemberController {
     private final MemberService memberService;
     private final MemberRepository memberRepository;
     private final ResponseService responseService;
+    private final MemberRegisterOTPRepository memberRegisterOTPRepository;
+    private final StringUtil stringUtil;
+    private final UserRepository userRepository;
+
 
     @Autowired
-    public MemberController(MemberService memberService, MemberRepository memberRepository, ResponseService responseService) {
+    public MemberController(MemberService memberService, MemberRepository memberRepository, ResponseService responseService, MemberRegisterOTPRepository memberRegisterOTPRepository, StringUtil stringUtil, UserRepository userRepository) {
         this.memberService = memberService;
         this.memberRepository = memberRepository;
         this.responseService = responseService;
+        this.memberRegisterOTPRepository = memberRegisterOTPRepository;
+        this.stringUtil = stringUtil;
+        this.userRepository = userRepository;
     }
 
     @GetMapping("/p/member/test")
     public Mono<ResponseWrapper<Object>> test() {
 
-//        Mono<MemberEntity> byId = memberRepository.findById(2L);
-        HashMap<String, String> test = new HashMap<>();
-        test.put("aaa", "1234");
-        test.put("9999", "ccccc");
-        return responseService.createResponseSuccess(test);
+        return Mono.just("Heelo").flatMap(responseService::createResponseSuccess);
     }
 
     @PostMapping("/member/login")

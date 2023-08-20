@@ -1,34 +1,36 @@
 package com.thitiwas.ecoreactive.entity;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Column;
 import org.springframework.data.relational.core.mapping.Table;
 
 import java.time.LocalDateTime;
 import java.util.Date;
-@Table("user")
+
+@Table("member_register_otp")
 @Data
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class UserEntity {
+public class MemberRegisterOTPEntity {
     @Id
     private Long id;
 
-    @Column("email")
-    private String email;
+    @Column("member_id")
+    private Long memberId;
 
-    @Column("password")
-    @ToString.Exclude
-    private String password;
+    @Column("ref")
+    private String ref;
 
-    @Column("access_token")
-    @ToString.Exclude
-    private String accessToken;
+    @Column("otp")
+    private String otp;
 
-    @Column("login_expired")
-    private LocalDateTime LoginExpired;
+    @Column("expire_date")
+    private LocalDateTime expireDate;
 
     @Column("create_date")
     private LocalDateTime createDate;
@@ -41,16 +43,4 @@ public class UserEntity {
 
     @Column("update_by")
     private Long updateBy;
-
-    @Column("type")
-    private String type;
-
-    @Column("is_delete")
-    private boolean isDelete;
-
-    @Column("telno")
-    private String telno;
-
-    @Column("is_confirm")
-    private Boolean isConfirm;
 }
