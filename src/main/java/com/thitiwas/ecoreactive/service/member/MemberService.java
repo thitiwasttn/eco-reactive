@@ -132,7 +132,6 @@ public class MemberService {
                     ret = "0" + telno.substring(2);
                 }
             }
-            log.info("ret: {}", ret);
             return ret;
         });
     }
@@ -156,13 +155,13 @@ public class MemberService {
                     if (!aBoolean) {
                         throw errorService.emailNotValid();
                     }
-                });
+                }).log("validateEmail::");
         Mono<Boolean> validateTelno = validateTelno(requestRegister.getTelno())
                 .doOnNext(aBoolean -> {
                     if (!aBoolean) {
                         throw errorService.telnoNotValid();
                     }
-                });
+                }).log("validateTelno::");
         /*Mono<Void> telno = formatTelnoTo10Digit(requestRegisterM.getTelno())
                 .doOnNext(requestRegisterM::setTelno).then();*/
 
@@ -173,43 +172,38 @@ public class MemberService {
                     requestRegister.setTelno(string);
                     return requestRegister;
                 })
-                .flatMap(requestRegisterM -> {
-                    log.info("xxx :{}", requestRegisterM.getTelno());
-                    return userRepository.findByEmailAndType(requestRegisterM.getEmail(), Constant.MEMBER_TYPE)
-                            .doOnNext(userEntity -> {
-                                log.info("telno: {}", requestRegisterM.getTelno());
-                                if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
-                                    throw errorService.emailIsAlreadyExist();
-                                }
-                            }).flatMap(userEntity -> {
-                                CreateUserM createUserM = new CreateUserM();
-                                createUserM.setEmail(requestRegisterM.getEmail());
-                                createUserM.setPassword(requestRegisterM.getPassword());
-                                createUserM.setTelno(requestRegisterM.getTelno());
-                                createUserM.setType(Constant.MEMBER_TYPE);
-                                return userService.createUserMember(createUserM).log();
-                            }).flatMap(responseCreateUser -> {
-                                        return createOrUpdateMember(requestRegisterM, responseCreateUser.getId())
-                                                .flatMap(member -> {
-                                                    return pdpaService.acceptLastPDPAWithMemberId(member.getId())
-                                                            .then(logMemberRegisterService.saveLogRegister(member.getId(), requestRegisterM.getDeviceOS()))
-                                                            .then(createOrUpdateRegisterOTP(member));
-                                                    // return Mono.when(voidMono, voidMono1).then(Mono.defer(() -> orUpdateRegisterOTP));
-                                                }).flatMap(memberRegisterOTPEntity -> sendRegisterOtpMail(requestRegisterM.getEmail(), memberRegisterOTPEntity.getRef(), memberRegisterOTPEntity.getOtp())
-                                                        .then(Mono.fromCallable(() -> memberRegisterOTPEntity))
-                                                ).map(memberRegisterOTPEntity -> {
-                                                    LocalDateTime expireDate = memberRegisterOTPEntity.getExpireDate();
-                                                    Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
-                                                    Date date = Date.from(instant);
-                                                    long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
-                                                    return ResponseRegisterM.builder()
-                                                            .ref(memberRegisterOTPEntity.getRef())
-                                                            .expiredSecond(String.valueOf(timeExpiredInSecond))
-                                                            .build();
-                                                });
-                                    }
-                            );
-                });
+                .flatMap(requestRegisterM -> userRepository.findByEmailAndType(requestRegisterM.getEmail(), Constant.MEMBER_TYPE)
+                        .doOnNext(userEntity -> {
+                            if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
+                                throw errorService.emailIsAlreadyExist();
+                            }
+                        }).flatMap(userEntity -> {
+                            log.info("requestRegisterM.getTelno() :{}", requestRegisterM.getTelno());
+                            CreateUserM createUserM = new CreateUserM();
+                            createUserM.setEmail(requestRegisterM.getEmail());
+                            createUserM.setPassword(requestRegisterM.getPassword());
+                            createUserM.setTelno(requestRegisterM.getTelno());
+                            createUserM.setType(Constant.MEMBER_TYPE);
+                            return userService.createUserMember(createUserM).log();
+                        }).flatMap(responseCreateUser -> createOrUpdateMember(requestRegisterM, responseCreateUser.getId())
+                                .flatMap(member -> {
+                                    return pdpaService.acceptLastPDPAWithMemberId(member.getId())
+                                            .then(logMemberRegisterService.saveLogRegister(member.getId(), requestRegisterM.getDeviceOS()))
+                                            .then(createOrUpdateRegisterOTP(member));
+                                    // return Mono.when(voidMono, voidMono1).then(Mono.defer(() -> orUpdateRegisterOTP));
+                                }).flatMap(memberRegisterOTPEntity -> sendRegisterOtpMail(requestRegisterM.getEmail(), memberRegisterOTPEntity.getRef(), memberRegisterOTPEntity.getOtp())
+                                        .then(Mono.fromCallable(() -> memberRegisterOTPEntity))
+                                ).map(memberRegisterOTPEntity -> {
+                                    LocalDateTime expireDate = memberRegisterOTPEntity.getExpireDate();
+                                    Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
+                                    Date date = Date.from(instant);
+                                    long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
+                                    return ResponseRegisterM.builder()
+                                            .ref(memberRegisterOTPEntity.getRef())
+                                            .expiredSecond(String.valueOf(timeExpiredInSecond))
+                                            .build();
+                                })
+                        ));
     }
 
     Mono<Void> sendRegisterOtpMail(String email, String ref, String otp) {
