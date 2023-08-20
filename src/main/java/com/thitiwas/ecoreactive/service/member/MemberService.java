@@ -164,7 +164,7 @@ public class MemberService {
                             createUserM.setEmail(requestRegisterM.getEmail());
                             createUserM.setPassword(requestRegisterM.getPassword());
                             createUserM.setTelno(requestRegisterM.getTelno());
-                            createUserM.setType("MEMBER");
+                            createUserM.setType(Constant.MEMBER_TYPE);
                             return userService.createUserMember(createUserM).log();
                         }).flatMap(responseCreateUser -> createOrUpdateMember(requestRegisterM, responseCreateUser.getId())
                                 .flatMap(member -> {
@@ -179,7 +179,6 @@ public class MemberService {
                                     Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
                                     Date date = Date.from(instant);
                                     long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
-                                    log.info("lastxxx");
                                     return ResponseRegisterM.builder()
                                             .ref(memberRegisterOTPEntity.getRef())
                                             .expiredSecond(String.valueOf(timeExpiredInSecond))
