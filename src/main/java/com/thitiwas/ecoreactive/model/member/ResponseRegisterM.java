@@ -12,4 +12,5 @@ import lombok.NoArgsConstructor;
 public class ResponseRegisterM {
     private String ref;
     private String expiredSecond;
+    private String telno;
 }

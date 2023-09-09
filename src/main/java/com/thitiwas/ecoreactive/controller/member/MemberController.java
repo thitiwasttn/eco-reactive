@@ -4,7 +4,9 @@ import com.thitiwas.ecoreactive.entity.MemberRegisterOTPEntity;
 import com.thitiwas.ecoreactive.entity.UserEntity;
 import com.thitiwas.ecoreactive.model.ResponseWrapper;
 import com.thitiwas.ecoreactive.model.member.RequestLogin;
+import com.thitiwas.ecoreactive.model.member.RequestResendOTPM;
 import com.thitiwas.ecoreactive.model.member.ResponseLogin;
+import com.thitiwas.ecoreactive.model.member.ResponseRegisterM;
 import com.thitiwas.ecoreactive.repository.MemberRegisterOTPRepository;
 import com.thitiwas.ecoreactive.repository.MemberRepository;
 import com.thitiwas.ecoreactive.repository.UserRepository;
@@ -55,6 +57,12 @@ public class MemberController {
     @Transactional
     public Mono<ResponseWrapper<ResponseLogin>> memberLogin(@RequestBody RequestLogin login) {
         return memberService.login(login).flatMap(responseService::createResponseSuccess);
+    }
+
+    @PostMapping("/p/member/resend-otp")
+    @Transactional
+    public Mono<ResponseWrapper<ResponseRegisterM>> resendOTP(@RequestBody RequestResendOTPM resendOTPM) {
+        return memberService.resendOTP(resendOTPM).flatMap(responseService::createResponseSuccess);
     }
 
 }

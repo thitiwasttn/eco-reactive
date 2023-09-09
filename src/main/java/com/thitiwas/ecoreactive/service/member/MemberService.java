@@ -4,11 +4,9 @@ import com.thitiwas.ecoreactive.entity.MemberEntity;
 import com.thitiwas.ecoreactive.entity.MemberRegisterOTPEntity;
 import com.thitiwas.ecoreactive.entity.UserEntity;
 import com.thitiwas.ecoreactive.exception.CustomErrorException;
+import com.thitiwas.ecoreactive.model.ResponseWrapper;
 import com.thitiwas.ecoreactive.model.auth.CreateUserM;
-import com.thitiwas.ecoreactive.model.member.RequestLogin;
-import com.thitiwas.ecoreactive.model.member.RequestRegisterM;
-import com.thitiwas.ecoreactive.model.member.ResponseLogin;
-import com.thitiwas.ecoreactive.model.member.ResponseRegisterM;
+import com.thitiwas.ecoreactive.model.member.*;
 import com.thitiwas.ecoreactive.repository.MemberRegisterOTPRepository;
 import com.thitiwas.ecoreactive.repository.MemberRepository;
 import com.thitiwas.ecoreactive.repository.UserRepository;
@@ -79,10 +77,10 @@ public class MemberService {
                 })
                 .then(userService.login(login.getEmail(), login.getPassword())
                         .flatMap(token -> userRepository.findByEmailAndType(login.getEmail(), Constant.MEMBER_TYPE)
-                                .switchIfEmpty(Mono.error(errorService::createUserNotFound))
+                                .switchIfEmpty(Mono.defer(() -> Mono.error(errorService::createUserNotFound)))
                                 .doOnNext(this::isUserDelete)
                                 .flatMap(userEntity -> Mono.zip(memberRepository.findByUserId(userEntity.getId())
-                                                .switchIfEmpty(Mono.error(errorService::createUserNotFound))
+                                                .switchIfEmpty(Mono.defer(() -> Mono.error(errorService::createUserNotFound)))
                                                 .doOnNext(this::isMemberDelete)
                                                 .flatMap(memberEntity -> {
                                                     memberEntity.setDeviceOs(login.getDeviceOS());
@@ -163,7 +161,8 @@ public class MemberService {
                     requestRegister.setTelno(string);
                     return requestRegister;
                 })
-                .flatMap(requestRegisterMap -> Mono.zip(Mono.just(requestRegisterMap), userRepository.findByEmailAndType(requestRegisterMap.getEmail(), Constant.MEMBER_TYPE)
+                .flatMap(requestRegisterMap -> Mono.zip(Mono.just(requestRegisterMap),
+                        userRepository.findByEmailAndType(requestRegisterMap.getEmail(), Constant.MEMBER_TYPE)
                                 .doOnNext(userEntity -> {
                                     if (userEntity.getIsConfirm() && !userEntity.isDelete()) {
                                         throw errorService.emailIsAlreadyExist();
@@ -201,6 +200,7 @@ public class MemberService {
                                         return ResponseRegisterM.builder()
                                                 .ref(memberRegisterOTPEntity.getRef())
                                                 .expiredSecond(String.valueOf(timeExpiredInSecond))
+                                                .telno(requestRegisterM.getTelno())
                                                 .build();
                                     })
                             );
@@ -274,5 +274,39 @@ public class MemberService {
                     return memberRepository.save(member);
                 })
         );
+    }
+
+    public Mono<ResponseRegisterM> resendOTP(RequestResendOTPM resendOTPM) {
+        Mono<Boolean> validatedEmail = validateEmail(resendOTPM.getEmail())
+                .doOnNext(aBoolean -> {
+                    if (!aBoolean) {
+                        throw errorService.emailNotValid();
+                    }
+                });
+                // .doOnNext(aBoolean -> ifFalseThrow(aBoolean, errorService.emailNotValid()));
+
+        return validatedEmail
+                .then(userRepository.findByEmailAndType(resendOTPM.getEmail(), Constant.MEMBER_TYPE))
+                .switchIfEmpty(Mono.defer(() -> Mono.error(errorService.createUserNotFound())))
+                .doOnNext(userEntity -> {
+                    if (userEntity.isDelete()) {
+                        throw errorService.createUserNotFound();
+                    }
+                })
+                .flatMap(userEntity -> Mono.zip(Mono.just(userEntity), memberRepository.findByUserId(userEntity.getId())
+                        .switchIfEmpty(Mono.defer(() -> Mono.error(errorService.createUserNotFound())))
+                        .flatMap(memberEntity -> createOrUpdateRegisterOTP(memberEntity)
+                                .flatMap(entity -> sendRegisterOtpMail(resendOTPM.getEmail(), entity.getRef(), entity.getOtp())
+                                        .then(Mono.fromCallable(() -> entity)))), formatTelnoTo10Digit(userEntity.getTelno()))).map(objects -> {
+                    LocalDateTime expireDate = objects.getT2().getExpireDate();
+                    Instant instant = expireDate.atZone(ZoneId.systemDefault()).toInstant();
+                    Date date = Date.from(instant);
+                    long timeExpiredInSecond = (date.getTime() - Calendar.getInstance().getTime().getTime()) / 1000;
+                    return ResponseRegisterM.builder()
+                            .ref(objects.getT2().getRef())
+                            .expiredSecond(String.valueOf(timeExpiredInSecond))
+                            .telno(objects.getT3())
+                            .build();
+                });
     }
 }

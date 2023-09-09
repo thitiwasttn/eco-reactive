@@ -6,12 +6,14 @@ import com.thitiwas.ecoreactive.model.CommonConstant;
 import com.thitiwas.ecoreactive.model.Constant;
 import com.thitiwas.ecoreactive.model.ErrorObj;
 import com.thitiwas.ecoreactive.model.ResponseWrapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
 @Service
+@Slf4j
 public class ErrorService {
     public CustomErrorException createUserNotFound() {
 
@@ -140,6 +142,7 @@ public class ErrorService {
     }
 
     public CustomErrorException invalidEmailOrPassword() {
+        log.debug("invalidEmailOrPassword()");
         ErrorObj build = ErrorObj.builder()
                 .errorCode(String.valueOf(HttpStatus.UNAUTHORIZED.value()))
                 .msgType(Constant.ERROR_MSG_TYPE_POPUP)

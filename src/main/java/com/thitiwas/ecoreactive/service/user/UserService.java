@@ -34,8 +34,8 @@ public class UserService {
 
     public Mono<String> login(String email, String password) {
         return Mono.defer(() -> userRepository.customFindByEmailAndPasswordAndConfirm(email, password, 1)
-                .switchIfEmpty(Mono.error(errorService.invalidEmailOrPassword()))
-                // .doOnNext(userEntity -> log.info("xx"))
+                .switchIfEmpty(Mono.defer(() -> Mono.error(errorService.invalidEmailOrPassword())))
+                // .switchIfEmpty(Mono.error(errorService.invalidEmailOrPassword()))
                 .flatMap(userEntity -> tokenService.createToken(userEntity.getId())
                         .flatMap(s -> updateUserToken(userEntity, s)))
                 .map(UserEntity::getAccessToken));
